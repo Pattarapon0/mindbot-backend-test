@@ -1,55 +1,19 @@
-# MindBot Backend Developer Test
+ออกแบบ schema อย่างไร
+CREATE TABLE rooms (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL
+);
 
-## Context
-คุณได้รับมอบหมายให้พัฒนาส่วนหนึ่งของ **Hotel Booking System**  
-ระบบนี้ต้องรองรับลูกค้าที่จองห้องแบบ real-time โดยไม่ให้เกิด **double booking**  
-
----
-
-## Environment Setup
-```bash
-docker compose up --build
-```
-API รันที่ `http://localhost:3000`  
-Database: `postgres://postgres:postgres@localhost:5432/booking`
-
----
-
-## สิ่งที่ต้องทำ
-
-### 1. Database Schema
-- ออกแบบ schema สำหรับ `rooms` และ `reservations`  
-- ป้องกันไม่ให้มีการจองห้องซ้ำในช่วงเวลาเดียวกัน
-
-### 2. API
-- `POST /reservations`
-  - รับ body:
-    ```json
-    {
-      "room_id": 101,
-      "check_in": "2025-10-01",
-      "check_out": "2025-10-05"
-    }
-    ```
-  - ถ้าห้องว่าง → สร้าง reservation  
-  - ถ้าห้องไม่ว่าง → ตอบ `409 Conflict`  
-
-- ต้อง handle **concurrent request** ให้ไม่เกิด double booking
-
-### 3. Testing
-- เขียน integration tests ใน `tests/`
-
-### 4. Dockerize
-- ใช้ docker-compose เพื่อรัน PostgreSQL และ API
-- สร้าง Dockerfile สำหรับ API ที่ติดตั้ง dependency ทั้งหมดและรัน server ได้
-
-### 5. Git
-- สร้าง branch และ commit งานอย่างเหมาะสม
-
-### 6. Documentation
-- อธิบายใน `README.md` ว่า
-  - ออกแบบ schema อย่างไร
-  - ป้องกัน double booking แบบไหน
-  - trade-off ที่เลือก
-
----
+CREATE TABLE reservations (
+    id SERIAL PRIMARY KEY,
+    room_id INT NOT NULL REFERENCES rooms(id),
+    check_in DATE NOT NULL,
+    check_out DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT now()
+    CONSTRAINT check_in_before_out CHECK (check_out > check_in)
+);
+นี้ก็เป็น schema เบื้องต้นมีการเพิ่่มจากต้นแบบโดยมีการเพิ่ม constraint เพื่อให้แน่ใจว่า check_out จะต้องมากกว่า check_in และ room_id จะต้อง exit ก่อนถึงจะทำการจองได้
+ป้องกัน double booking แบบไหน
+- ใช้ transaction isolation level เป็น SERIALIZABLE เพื่อ block ไม่ให้ process อื่นเข้ามาเกี่ยวข้องกับข้อมูลที่ process นี้กำลังทำงานอยู่
+trade-off ที่เลือก
+- การใช้ SERIALIZABLE เป็นการ block concurrency process ทั้งหมดที่เกี่ยวข้องกับ transaction นี้ทั้งหมด มีความมันใจว่าจะไม่มี double booking เกิดขึ้นแน่นอน แต่ก็แลกมาด้วย performance ที่ลดลงจากการ blocking
